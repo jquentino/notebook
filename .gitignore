@@ -1,2 +1,5 @@
+
 figures/
 .ipynb*
+*.jpg
+*.jpeg
