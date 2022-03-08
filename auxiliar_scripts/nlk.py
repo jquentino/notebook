@@ -22,7 +22,7 @@ def si_nlk_kick(strength=None, fit_monomials=None, plot_flag=False, r0=0.0):
     if fit_monomials is None:
         fit_monomials = np.arange(10, dtype=int)
     if strength is None:
-        strength = 0.565976805957669
+        strength = 0.27358145
 
 #     # NLK model without iron
 #     maxfield = np.array(
