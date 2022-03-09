@@ -1,149 +1,167 @@
-import numpy as np
+import numpy as _np
+import matplotlib.pyplot as _plt
+from mathphys.constants import vacuum_permeability
 from mathphys.beam_optics import beam_rigidity
-import matplotlib.pyplot as plt
+
+
+class Wire:
+    """."""
+    def __init__(self, position, current):
+        self.pos = position  # Column vector
+        self.curr = current
+
+    def Bfield(self, x, y):
+        mu0 = vacuum_permeability
+        r_w = self.pos  # Wire positions
+        r = _np.array([x, y])[:, None]  # Target position
+        rc = r - r_w  # Cursive r
+        theta = _np.arctan2(rc[1], rc[0])[0]
+        theta_vec = _np.array([-_np.sin(theta), _np.cos(theta)])[:, None]
+        B = mu0 * self.curr/(2*_np.pi*_np.linalg.norm(rc))*theta_vec + r_w
+        return B
+
+    def include_pos_error(self, sigma):
+        self.error = _np.random.normal(loc=0, scale=sigma)
+        self.pos = self.pos + self.error
+
+    @property
+    def pos(self):
+        return self._pos
+
+    @pos.setter
+    def pos(self, position):
+        self._pos = position
+
+    @property
+    def curr(self):
+        return self._curr
+
+    @curr.setter
+    def curr(self, current):
+        self._curr = current
+
+
+class NLK:
+    """."""
+    def __init__(self, curr=1850, errors=False, sigma_errors=1e-5):
+        # Setting wire positions
+        wire_positions = []
+        wire_positions.append(_np.array([7.0,  5.21])[:, None]*1e-3)
+        wire_positions.append(_np.array([10.,  5.85])[:, None]*1e-3)
+        wire_positions.append(_np.array([-7.,  5.21])[:, None]*1e-3)
+        wire_positions.append(_np.array([-10,  5.85])[:, None]*1e-3)
+        wire_positions.append(_np.array([7.0, -5.21])[:, None]*1e-3)
+        wire_positions.append(_np.array([10., -5.85])[:, None]*1e-3)
+        wire_positions.append(_np.array([-7., -5.21])[:, None]*1e-3)
+        wire_positions.append(_np.array([-10, -5.85])[:, None]*1e-3)
+        self._positions = wire_positions
+
+        # Setting wire currents
+        currents = []
+        for i in range(8):
+            if i % 2:
+                currents.append(-curr)
+            else:
+                currents.append(curr)
+        self._currents = currents
+
+        # Creating wires
+        self._wires = []
+        for i in range(8):
+            pos = wire_positions[i]
+            curr = currents[i]
+            wire = Wire(pos, curr)
+            if errors:
+                wire.include_pos_error(sigma=sigma_errors)
+            self._wires.append(wire)
+
+    @property
+    def wires(self):
+        return self._wires
+
+    @wires.setter
+    def wires(self, wires_objects):
+        self._wires = wires_objects
+
+    @property
+    def positions(self):
+        "Return positions of all wires"
+        return self._positions
+
+    @positions.setter
+    def positions(self, wires_positions):
+        self._positions = wires_positions
+
+    @property
+    def currents(self):
+        "Return currents of all wires"
+        return self._currents
+
+    @currents.setter
+    def currents(self, wires_currents):
+        self._currents = wires_currents
+
+    def Bfield(self, x, y):
+        field = _np.zeros([2, 1])
+        for wire in self.wires:
+            field += wire.Bfield(x, y)
+        return field
+
+    def include_pos_error(self, sigma_errors):
+        for wire in self.wires:
+            wire.include_pos_error(sigma_errors)
+
+    def nlk_profile(self):
+        "NLK vertical field at y=0 for x ∈ [-12, 12] mm."
+        x_space = _np.linspace(-12, 12)*1e-3
+        fieldy = _np.array([self.Bfield(x, 0)[1] for x in x_space])
+        return x_space, fieldy
 
 
 def polyfit(x, y, n):
     x = x.reshape([-1, 1])  # transforms into a column vector
     y = y.reshape([-1, 1])
-    n = np.array(n).reshape([1, -1])  # transforms into a row vector
+    n = _np.array(n).reshape([1, -1])  # transforms into a row vector
 
     xn = x**n
-    b = np.dot(xn.T, y)
-    X = np.dot(xn.T, xn)
-    coeffs = np.linalg.solve(X, b)
-    y_fit = np.dot(xn, coeffs)
+    b = _np.dot(xn.T, y)
+    X = _np.dot(xn.T, xn)
+    coeffs = _np.linalg.solve(X, b)
+    y_fit = _np.dot(xn, coeffs)
 
     return coeffs, y_fit
 
 
-def si_nlk_kick(strength=None, fit_monomials=None, plot_flag=False, r0=0.0):
+def si_nlk_kick(
+        strength=None, fit_monomials=None, plot_flag=False,
+        r0=0.0, errors=False, sigma_errors=1e-5):
+    """Generates the nlk integrated polynom_b and its horizontal
+    kick."""
 
     if fit_monomials is None:
-        fit_monomials = np.arange(10, dtype=int)
+        fit_monomials = _np.arange(10, dtype=int)
     if strength is None:
         strength = 0.27358145
 
-#     # NLK model without iron
-#     maxfield = np.array(
-#         [[-12.0, -2.4041E-02],
-#             [-11.5,	-2.9740E-02],
-#             [-11.0,	-3.5327E-02],
-#             [-10.5,	-4.0350E-02],
-#             [-10.0,	-4.4346E-02],
-#             [-9.5,	-4.6916E-02],
-#             [-9.0,	-4.7787E-02],
-#             [-8.5,	-4.6854E-02],
-#             [-8.0,	-4.4202E-02],
-#             [-7.5,	-4.0101E-02],
-#             [-7.0,	-3.4968E-02],
-#             [-6.5,	-2.9300E-02],
-#             [-6.0,	-2.3589E-02],
-#             [-5.5,	-1.8246E-02],
-#             [-5.0,	-1.3549E-02],
-#             [-4.5,	-9.6407E-03],
-#             [-4.0,	-6.5433E-03],
-#             [-3.5,	-4.2006E-03],
-#             [-3.0,	-2.5120E-03],
-#             [-2.5,	-1.3606E-03],
-#             [-2.0,	-6.3108E-04],
-#             [-1.5,	-2.1777E-04],
-#             [-1.0,	-2.7747E-05],
-#             [-0.5,	2.0482E-05],
-#             [0.0,	0.0000E+00],
-#             [0.5,	-2.0482E-05],
-#             [1.0,	2.7747E-05],
-#             [1.5,	2.1777E-04],
-#             [2.0,	6.3108E-04],
-#             [2.5,	1.3606E-03],
-#             [3.0,	2.5120E-03],
-#             [3.5,	4.2006E-03],
-#             [4.0,	6.5433E-03],
-#             [4.5,	9.6407E-03],
-#             [5.0,	1.3549E-02],
-#             [5.5,	1.8246E-02],
-#             [6.0,	2.3589E-02],
-#             [6.5,	2.9300E-02],
-#             [7.0,	3.4968E-02],
-#             [7.5,	4.0101E-02],
-#             [8.0,	4.4202E-02],
-#             [8.5,	4.6854E-02],
-#             [9.0,	4.7787E-02],
-#             [9.5,	4.6916E-02],
-#             [10.0,	4.4346E-02],
-#             [10.5,	4.0350E-02],
-#             [11.0,	3.5327E-02],
-#             [11.5,	2.9740E-02],
-#             [12.0,	2.4041E-02]]
-#     )
-    maxfield = np.array(
-            [[-12.0,	-0.02739751 ],
-            [-11.5,	-0.036091191  ],
-            [-11.0,	-0.045815978  ],
-            [-10.5,	-0.056468018  ],
-            [-10.0,	-0.067314  ],
-            [-9.5,	-0.077369581  ],
-            [-9.0,	-0.085662273  ],
-            [-8.5,	-0.091400168  ],
-            [-8.0,	-0.094065576  ],
-            [-7.5,	-0.09345044  ],
-            [-7.0,	-0.08964827  ],
-            [-6.5,	-0.083015408  ],
-            [-6.0,	-0.074112536  ],
-            [-5.5,	-0.063635622  ],
-            [-5.0,	-0.052343848  ],
-            [-4.5,	-0.040990576  ],
-            [-4.0,	-0.030261996  ],
-            [-3.5,	-0.020726824  ],
-            [-3.0,	-0.012799267  ],
-            [-2.5,	-0.006716409  ],
-            [-2.0,	-0.002530252  ],
-            [-1.5,	-0.000113827  ],
-            [-1.0,	 0.000819894  ],
-            [-0.5,	 0.00068816  ],
-            [0.0,	 0  ],
-            [0.5,	-0.00068816  ],
-            [1.0,    -0.000819894  ],
-            [1.5,	 0.000113827  ],
-            [2.0,	 0.002530252  ],
-            [2.5,	 0.006716409  ],
-            [3.0,	 0.012799267  ],
-            [3.5,	 0.020726824  ],
-            [4.0,	 0.030261996  ],
-            [4.5,	 0.040990576  ],
-            [5.0,	 0.052343848  ],
-            [5.5,	 0.063635622  ],
-            [6.0,	 0.074112536  ],
-            [6.5,	 0.083015408  ],
-            [7.0,	 0.08964827  ],
-            [7.5,	 0.09345044  ],
-            [8.0,	 0.094065576  ],
-            [8.5,	 0.091400168  ],
-            [9.0,	 0.085662273  ],
-            [9.5,	 0.077369581  ],
-            [10.0,	 0.067314  ],
-            [10.5,	 0.056468018  ],
-            [11.0,	 0.045815978  ],
-            [11.5,	 0.036091191  ],
-            [12.0,	 0.02739751  ]])
-    
-    x = maxfield[:, 0]*1e-3
+    nlk = NLK(errors=errors, sigma_errors=sigma_errors)
+    x, B = nlk.nlk_profile()
+
     brho, *_ = beam_rigidity(energy=3)  # Energy in GeV
-    integ_field = strength * maxfield[:, 1]
+    integ_field = strength * B
     kickx = integ_field / brho
 
     coeffs, fit_kickx = polyfit(x=x-r0, y=kickx, n=fit_monomials)
 
     if plot_flag:
-        plt.figure()
-        plt.scatter(1e3*(x-r0), 1e3*kickx, label="data points")
-        plt.plot(1e3*(x-r0), 1e3*fit_kickx, c=[0, 0.6, 0],
-                 label="fitted curve")
-        plt.xlabel('X [mm]')
-        plt.ylabel("Kick @ 3 GeV [mrad]")
-        plt.title("NLK Profile")
-        plt.legend()
+        _plt.figure()
+        _plt.scatter(1e3*(x-r0), 1e3*kickx, label="data points")
+        _plt.plot(
+            1e3*(x-r0), 1e3*fit_kickx, c=[0, 0.6, 0], label="fitted curve")
+        _plt.xlabel('X [mm]')
+        _plt.ylabel("Kick @ 3 GeV [mrad]")
+        _plt.title("NLK Profile")
+        _plt.legend()
 
-    LPolyB = np.zeros([1, 1 + np.max(fit_monomials)])
+    LPolyB = _np.zeros([1, 1 + _np.max(fit_monomials)])
     LPolyB[0][fit_monomials] = -coeffs[:, 0]
     return x, integ_field, kickx, LPolyB
