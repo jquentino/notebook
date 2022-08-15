@@ -2,8 +2,16 @@
 figures/
 data/
 .ipynb*
+*.pickle
+*.out
+*.npy
+*.tar*
 *.jpg
+*.png
 *.jpeg
+*.txt
+*.pdf
+*.svg
 __pycache__/
 
 

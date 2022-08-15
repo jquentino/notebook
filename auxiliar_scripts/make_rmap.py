@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mathphys.functions import save_pickle, load_pickle
-from apsuite.commisslib.bo_emittance_exchange import EmittanceExchangeSimul
+from apsuite.commisslib.emit_exchange import EmittanceExchangeSimul
 
 
 def make_Rmap(S_list, C_list):
@@ -12,7 +12,7 @@ def make_Rmap(S_list, C_list):
         for j, c in enumerate(C_list):
             n_turns = int(np.abs(init_delta)/(s * c**2))
             if n_turns > 8000:
-                print('Simulation canceled, N>2e4.')
+                print('Simulation canceled, N>8e3.')
                 R_matrix[i, j] = np.nan
                 continue
             else:
@@ -36,14 +36,14 @@ def plot_rmap(S_list, C_list, R, initial_delta=-0.073,):
         nivel_curves = [0.5, 1, 2, 3.5]
         cs = ax.contour(
             t_mesh, C_mesh*1e2, S_mesh, levels=nivel_curves, colors='k',
-            linestyles='dashed', linewidsths=1)
+            linestyles='dashed', linewidths=1)
         ax.clabel(cs, fontsize=9, inline=1, fmt='S = %1.1f')
         ax.set_xlabel('$t_c$ [ms]')
         ax.set_ylabel(r'$|C| \;[\%]$')
         ax.set_xscale("log")
         ax.set_ylim([C_mesh.min()*1.1e2, C_mesh.max()*0.9e2])
         ax.tick_params(axis='both', which='both', direction='out')
-        plt.colorbar(img, label='$R$')
+        plt.colorbar(img, label='max$(R)$')
         plt.savefig(fname='new_R_map.pdf')
 
 
